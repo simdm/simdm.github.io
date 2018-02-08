@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "Welcome to Jekyll111!"
+title:  "me"
 date:   2018-02-08 11:47:10 +0800
 categories: life 
 ---
@@ -8,7 +8,32 @@ categories: life
 我
 =============
 
+#大
+##中
+
+
 火火兔
 ------------
+
+I strongly recommend against using any `<blink>` tags.
+
+I wish SmartyPants used named entities like `&mdash;`
+instead of decimal-encoded entites like `&#8212;`.
+
+
+I get 10 times more traffic from [Google][1] than from
+[Yahoo][2] or [MSN][3].
+
+[1]: http://google.com/ "Google"
+[2]: http://search.yahoo.com/ "Yahoo Search"
+[3]: http://search.msn.com/ "MSN Search"
+
+I get 10 times more traffic from [Google][] than from
+[Yahoo][] or [MSN][].
+
+  [google]: http://google.com/        "Google"
+  [yahoo]:  http://search.yahoo.com/  "Yahoo Search"
+  [msn]:    http://search.msn.com/    "MSN Search"
+
 
 ![火火兔](https://github.com/simdm/simdm.github.io.pic/blob/master/picture/1.jpg?raw=true)
