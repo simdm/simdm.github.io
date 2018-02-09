@@ -41,5 +41,7 @@ build
 .*.swp
 
 _site
-
+.sass-cache/
+*.swp
+.Trashes
 
