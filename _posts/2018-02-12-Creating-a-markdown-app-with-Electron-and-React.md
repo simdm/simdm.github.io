@@ -220,6 +220,293 @@ public/main.js代码：
 
 创建稳定的开发和构建过程
 =========================
+现在我们已经有了一个对于我们项目的使用React和Electron的模板，我们需要确信我们有一个稳定的构建环境对于开发和发布。
+
+直到现在我们对于开发环境的构建是非常好的，但是最终我们要构建一个对于OS X, Windows and Linux的发布环境。
+
+我也不喜欢我们必须在两个不同的命令行shell中分别运行React服务和Electron程序。
+
+在做一些有调查后，我从一个[From React to an Electron app ready for production](https://medium.com/@kitze/%EF%B8%8F-from-react-to-an-electron-app-ready-for-production-a0468ecb1da3)的帖子帮助了我。
+
+我们需要增加下面几个包在我们的项目中：
+
+1. [electron-builder](https://www.electron.build/) - 一个完整的解决包和构建发布Electron在macOS, Windows and Linux上，并支持自动更新的库。我们将用这个包来发布程序。
+
+2. [concurrently](https://github.com/kimmobrunfeldt/concurrently) - 同时运行命令。我们将使用这个包在一个命令中同时运行React和Electron。
+
+3. [wait-on](https://github.com/jeffbski/wait-on) - 命令行实用程序和Node.js API对于等待文件、端口、sockets和HTTP（S）资源变得可用。我们将使用这个包在等待React服务后在开始运行Electorn app。
+
+运行下面命令增加到这些包到项目中：
+```
+    yarn add electron-builder wait-on concurrently --dev
+```
+这些包只是对于开发是必须的，所以增加参数`--dev`，他们将自动增加到`devDependencies`中。
+
+创建一个开发脚本
+---------------
+当开发这个app时，我们想创建一个开发脚本。这将帮助我们测试我们开发的新特性和调试和确保我们在编辑代码时不会破坏任何东西。
+
+我们增加新甲苯在`package.json`中：
+```
+    "electron-dev": "concurrently \"BROWSER=none yarn start\" \"wait-on http://localhost:3000 && electron .\""
+```
+分析一下上面这行代码：
+1. concurrently - 同时运行这些程序
+2. BROWSER=none yarn start - 开始运行react程序并且不自动打开浏览器
+3. wait-on http://localhost:3000 && electron . - 等待开发服务器启动后，启动Electron程序
+
+运行下面命令行，将只开启Electron程序：
+```
+    yarn run electron-dev
+```
+![electron_react](/images/posts/electron/electron_react.png)
+
+
+创建一个构建脚本
+-------------
+这是非常容易的。我们需要增加两个脚本在`package.json`:
+* 编译Electron app之前，编译React app
+```
+    "preelectron-pack": "yarn build"
+```
+打包Electron app，这个脚本使用electron-builder：
+```
+    "electron-pack": "build --em.main=build/electron.js"
+```
+
+下一步，我们将制定编译属性，这是因为创建React和Electron之间有一个小冲突，因为两者都使用构建文件夹，来实现两个不同的目的。
+
+为了解决这个冲突，我们需要手工配置electron-builder的正确文件夹。增加下面构建代码到`package.json`:
+```
+    "build": {
+      "appId": "com.mook",
+      "files": [
+        "build/**/*",
+        "node_modules/**/*"
+      ],
+      "directories": {
+        "buildResources": "assets"
+      }
+    }
+```
+
+我们还增加homepage属性，允许打包Electron程序找到Javascript和CSS文件：
+```
+    "homepage": "./"
+```
+
+目前，你的`package.json`文件是这样的：
+```
+    {
+      "name": "mook",
+      "version": "0.1.0",
+      "main": "public/main.js",
+      "homepage": "./",
+      "private": true,
+      "scripts": {
+        "start": "react-scripts start",
+        "build": "react-scripts build",
+        "test": "react-scripts test --env=jsdom",
+        "eject": "react-scripts eject",
+        "electron-start": "electron .",
+        "electron-dev": "concurrently \"BROWSER=none yarn start\" \"wait-on http://localhost:3000 && electron .\"",
+        "electron-pack": "build --em.main=build/main.js",
+        "preelectron-pack": "yarn build"
+      },
+      "dependencies": {
+        "react": "^15.6.1",
+        "react-dom": "^15.6.1",
+        "react-scripts": "1.0.13",
+        "electron-is-dev": "^0.3.0"
+      },
+      "devDependencies": {
+        "concurrently": "^3.5.0",
+        "electron": "^1.7.6",
+        "electron-builder": "^19.27.7",
+        "wait-on": "^2.0.2"
+      },
+      "build": {
+        "appId": "com.mook",
+        "files": [
+          "build/**/*",
+          "node_modules/**/*"
+        ],
+        "directories": {
+          "buildResources": "assets"
+        }
+      }
+    }
+```
+
+最后一步将更新`public/main.js`。到目前为止，我们只支持应用程序的开发版本。我们的产品版本将无法使用`localhost:3000`，我们从发布文件夹中将用index.html文件替代。
+
+首先，我们需要安装[electron-is-dev]，这将有助于我们确定电React是否在开发模式中运行。
+
+安装[electron-is-dev]:
+```
+    yarn add electron-is-dev
+```
+
+更新`public/main`，使用[electron-is-dev]，
+
+* 增加包到代码中：
+```
+    const isDev = require('electron-is-dev');
+    const path = require('path');
+```
+
+* 更改`mainWindow.loadURL`函数：
+```
+    mainWindow.loadURL(isDev ? 'http://localhost:3000' : `file://${path.join(__dirname, '../build/index.html')}`);
+```
+
+上面代码是检测如果是开发模式，使用`localhost:3000`，否则`/build/index.html`。
+
+`public/main.js`代码现在如下：
+```
+    const electron = require('electron');
+    const app = electron.app;
+    const BrowserWindow = electron.BrowserWindow;
+    const isDev = require('electron-is-dev');
+    const path = require('path');
+    
+    let mainWindow;
+    
+    function createWindow() {
+      mainWindow = new BrowserWindow({width: 900, height: 680});
+      mainWindow.loadURL(isDev ? 'http://localhost:3000' : `file://${path.join(__dirname, '../build/index.html')}`);
+    
+      app.setAboutPanelOptions({
+        applicationName: "Mook",
+        applicationVersion: "0.0.1",
+      })
+    
+      mainWindow.on('closed', () => mainWindow = null);
+    }
+    
+    app.on('ready', createWindow);
+    
+    app.on('window-all-closed', () => {
+      if (process.platform !== 'darwin') {
+        app.quit();
+      }
+    });
+    
+    app.on('activate', () => {
+      if (mainWindow === null) {
+        createWindow();
+      }
+    });
+```
+
+现在让我们运行下面脚本：
+```
+    yarn run electron-pack
+```
+
+当这个脚本运行后，你将会看到一个`dist`的文件夹。将能够发现这个app，比如mac上mook.app。
+
+运行结果和开发模式一样：
+![electron_react](/images/posts/electron/electron_react.png)
+
+太好了，我们终于完成了基础构建工作！
+
+增加主要功能
+==================
+现在我们可以开始增加markdown程序的代码了。
+
+创建一个分割窗格的屏幕
+---------------------
+我们先增加[react-split-pane]组件。安装它：
+```
+    yarn add react-split-pane
+```
+
+增加下面JavaScript代码到`src/App.js`中：
+* 导入[react-split-pane]:
+```
+    import SplitPane from 'react-split-pane';
+```
+
+用下面代码替换`render`函数。这个代码增加SplitPane元素渲染两个div，一个是编辑，一个是预览：
+```
+    render() {
+        return (
+            <div className="App">
+                <SplitPane split="vertical" defaultSize="50%">
+                    <div className="editor-pane">
+                    </div>
+                    <div className="view-pane">
+                    </div>
+                </SplitPane>
+            </div>
+        );
+    }
+```
+
+再增加一些css到`src/App.css`中：
+```
+    .Resizer {
+        background: #000;
+        opacity: .4;
+        z-index: 1;
+        -moz-box-sizing: border-box;
+        -webkit-box-sizing: border-box;
+        box-sizing: border-box;
+        -moz-background-clip: padding;
+        -webkit-background-clip: padding;
+        background-clip: padding-box;
+    }
+    
+     .Resizer:hover {
+        -webkit-transition: all 2s ease;
+        transition: all 2s ease;
+    }
+    
+     .Resizer.horizontal {
+        height: 11px;
+        margin: -5px 0;
+        border-top: 5px solid rgba(255, 255, 255, 0);
+        border-bottom: 5px solid rgba(255, 255, 255, 0);
+        cursor: row-resize;
+        width: 100%;
+    }
+    
+    .Resizer.horizontal:hover {
+        border-top: 5px solid rgba(0, 0, 0, 0.5);
+        border-bottom: 5px solid rgba(0, 0, 0, 0.5);
+    }
+    
+    .Resizer.vertical {
+        width: 11px;
+        margin: 0 -5px;
+        border-left: 5px solid rgba(255, 255, 255, 0);
+        border-right: 5px solid rgba(255, 255, 255, 0);
+        cursor: col-resize;
+    }
+    
+    .Resizer.vertical:hover {
+        border-left: 5px solid rgba(0, 0, 0, 0.5);
+        border-right: 5px solid rgba(0, 0, 0, 0.5);
+    }
+    .Resizer.disabled {
+      cursor: not-allowed;
+    }
+    .Resizer.disabled:hover {
+      border-color: transparent;
+    }
+```
+
+如果你刷新app或者运行`yarn run electron-dev`，你将会看到当前窗口被分了两部分：
+![split_pane](/images/posts/electron/split_pane.png)
+
+你能够移动`separator bar`来缩放两个窗口。
+
+
+创建editer和preview窗格
+=====================
+
+
 
 
 
@@ -227,7 +514,7 @@ public/main.js代码：
 
 代码地址：[GitHub repo](https://github.com/kazuar/mook)
 
-本文翻译来自：[Creating a markdown app with Electron and React](http://kazuar.github.io/markdown-app/)
+本文翻译来自：[Creating a markdown app with Electron and React](https://medium.freecodecamp.org/heres-how-i-created-a-markdown-app-with-electron-and-react-1e902f8601ca)
 
 
 [Electron]: https://electronjs.org/ "Electron"
@@ -235,4 +522,6 @@ public/main.js代码：
 [Mook]: https://github.com/kazuar/mook "Mook"
 [boilerplate]: https://github.com/chentsulin/electron-react-boilerplate "boilerplate"
 [create-react-app]: https://github.com/facebookincubator/create-react-app "create-react-app"
+[electron-is-dev]: https://github.com/sindresorhus/electron-is-dev "electron-is-dev"
+[react-split-pane]: https://github.com/tomkp/react-split-pane "react-split-pane"
 
