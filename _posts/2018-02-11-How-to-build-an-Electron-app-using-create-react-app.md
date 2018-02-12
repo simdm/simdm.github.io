@@ -1,7 +1,7 @@
 ---
 layout: post
 title: 怎样构建Electron程序，使用create-react-app，不需要配置webpack和不用ejecting
-date: 2018-02-09 
+date: 2018-02-11 
 tag: Electron
 --- 
 
