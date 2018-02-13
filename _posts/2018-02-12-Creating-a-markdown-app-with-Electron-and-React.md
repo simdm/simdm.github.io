@@ -505,10 +505,336 @@ public/main.js代码：
 
 创建editer和preview窗格
 =====================
+现在我们有了两个分割的窗格，我们需要在里面增加功能。我们要设置的窗格左边是editor右边是preview窗格。我们在editor里写markdown，右边实时显示改变。
+
+创建editor窗格
+---------------
+让我们来创建editor窗格。我们使用[CodeMirror]。
+
+安装React版本的[React-CodeMirror]。因为它有一个小问题[Code mirror value doesn’t update with state change](https://github.com/JedWatson/react-codemirror/issues/106)，所以我们需要安装`@skidding/react-codemirror`来解决这个问题：
+```
+    yarn add @skidding/react-codemirror
+```
+创建一个新文件`src/editor.js`，新的类名叫`Editor`，继承自React’s Component class：
+```
+    import React, { Component } from 'react';
+    
+    class Editor extends Component {
+    }
+    
+    export default Editor;
+```
+这个类基本是封装[React-CodeMirror]的React组件[CodeMirror]。
+
+下一步我们导入`@skidding/react-codemirror`和一些对CodeMirror组件和符号高亮、markdown模式的css文件。
+
+我们还增加了render方法，返回CodeMirror元素和增加constructor方法。constructor方法允许我们从main文件里来用值来初始化CodeMirror。
+
+我们设定CodeMirror组件对于markdown模式和主题为monokai：
+```
+    import React, { Component } from 'react';
+    import CodeMirror from '@skidding/react-codemirror';
+    
+    require('codemirror/lib/codemirror.css');
+    require('codemirror/mode/javascript/javascript');
+    require('codemirror/mode/python/python');
+    require('codemirror/mode/xml/xml');
+    require('codemirror/mode/markdown/markdown');
+    require('codemirror/theme/monokai.css');
+    
+    class Editor extends Component {
+        constructor(props) {
+            super(props);
+        }
+    
+        render() {
+            var options = {
+              mode: 'markdown',
+              theme: 'monokai',
+            }
+            return (
+                <CodeMirror value={this.props.value} 
+                    options={options} height="100%"/>
+            );
+        }
+    }
+    
+    export default Editor;
+```
+
+在`src/App.js`文件里导入`editor.js`：
+```
+    import Editor from './editor.js';
+```
+在App类的constructor方法里初始化我们的editor：
+```
+    constructor(props) {
+      super();
+    
+      this.state = {
+        markdownSrc: "# Hello World",
+      }
+    }
+```
+
+在App的render方法里增加Editor组件并初始化markdownSrc值：
+```
+    render() {
+        return (
+          <div className="App">
+            <SplitPane split="vertical" defaultSize="50%">
+              <div className="editor-pane">
+                <Editor className="editor" value={this.state.markdownSrc}/>
+              </div>
+              <div className="view-pane">
+              </div>
+            </SplitPane>
+          </div>
+        );
+      }
+```
+
+此时的`src/App.js`文件：
+```
+    import React, { Component } from 'react';
+    import logo from './logo.svg';
+    import SplitPane from 'react-split-pane';
+    import Editor from './editor.js';
+    
+    import './App.css';
+    
+    class App extends Component {
+      constructor(props) {
+        super();
+    
+        this.state = {
+          markdownSrc: "# Hello World",
+        }
+      }
+    
+      render() {
+        return (
+          <div className="App">
+              <SplitPane split="vertical" defaultSize="50%">
+                  <div className="editor-pane">
+                    <Editor className="editor" value={this.state.markdownSrc}/>
+                  </div>
+                  <div className="view-pane">
+                  </div>
+              </SplitPane>
+          </div>
+        );
+      }
+    }
+    
+    export default App;
+```
+
+更新css文件`src/App.css`，做下面修改：
+1. 删除`text-align: center;`在.App章节，所以text不再居中。
+2. 增加下面css，来拉伸editor到最大高度，给右边的文本增加一点padding。
+```
+    .editor-pane {
+      height: 100%;
+    }
+    
+    .CodeMirror {
+      height: 100%;
+      padding-top: 20px;
+      padding-left: 20px;
+    }
+    
+    .ReactCodeMirror {
+      height: 100%;
+    }
+```
+
+刷新app，或者运行`run electron-dev`，应该显示下面画面：
+![editor](/images/posts/electron/editor.png)
+
+创建preview窗格
+----------------
+我们在右边窗格创建一个对于左边编辑实时的预览。
+
+为了这个目的，我们使用[React-Markdown]包：
+```
+    yarn add react-markdown
+```
+
+在`src\App.js`里导入它：
+```
+    import ReactMarkdown from 'react-markdown';
+```
+
+将`ReactMarkdown`组件增加到view-pane div：
+```
+    <div className="view-pane">
+      <ReactMarkdown className="result" source={this.state.markdownSrc} />
+    </div>
+```
+
+我们设置和`ReactMarkdown`组件相同的值`this.state.markdownSrc`。
+
+现在你可以运行看看preview窗框：
+```
+    yarn run electron-dev
+```
+![preview_pane](/images/posts/electron/preview_pane.png)
+
+我们可以看到text在preview窗框里，然而，你在左边写入内容后，右边的preview并不会翻译。
+
+我们要做的是让在editor中的每个改变都在App类中传递给preview。
+
+增加onMarkdownChange方法给`src\App.js`，用editor中的值更新markdownSrc的值。这个函数每当在editor中有改变时都会触发。
+
+增加下面代码到`src\App.js`：
+```
+    constructor(props) {
+      super();
+    
+      this.state = {
+        markdownSrc: "# Hello World"
+      }
+    
+      this.onMarkdownChange = this.onMarkdownChange.bind(this);
+    }
+    
+    onMarkdownChange(md) {
+      this.setState({
+        markdownSrc: md
+      });
+    }
+```
+在render方法中，给editor元素增加下面代码：
+```
+    <Editor className="editor" value={this.state.markdownSrc} onChange={this.onMarkdownChange}/>
+```
+
+在`src/editor.js`文件里，绑定CodeMirror的onChange方法到父类的onChange方法：
+```
+    constructor(props) {
+      super(props);
+    
+      this.updateCode = this.updateCode.bind(this);
+    }
+    
+    updateCode(e) {
+      this.props.onChange(e);
+    }
+```
+
+在render方法中，修改CodeMirror元素：
+```
+    <CodeMirror
+      value={this.props.value} onChange={this.updateCode}
+      options={options} height="100%"
+    />
+```
+
+此时`src/App.js`文件如下：
+```
+    import React, { Component } from 'react';
+    import logo from './logo.svg';
+    import SplitPane from 'react-split-pane';
+    import Editor from './editor.js';
+    import ReactMarkdown from 'react-markdown';
+    
+    import './App.css';
+    
+    class App extends Component {
+      constructor(props) {
+        super();
+    
+        this.state = {
+          markdownSrc: "# Hello World"
+        }
+    
+        this.onMarkdownChange = this.onMarkdownChange.bind(this);
+      }
+    
+      onMarkdownChange(md) {
+        this.setState({
+          markdownSrc: md
+        });
+      }
+    
+      render() {
+        return (
+          <div className="App">
+              <SplitPane split="vertical" defaultSize="50%">
+                  <div className="editor-pane">
+                    <Editor className="editor" value={this.state.markdownSrc} onChange={this.onMarkdownChange}/>
+                  </div>
+                  <div className="view-pane">
+                    <ReactMarkdown className="result" source={this.state.markdownSrc} />
+                  </div>
+              </SplitPane>
+          </div>
+        );
+      }
+    }
+    
+    export default App;
+```
+
+此时`src/editor.js`文件如下：
+```
+    import React, { Component } from 'react';
+    import CodeMirror from '@skidding/react-codemirror';
+    
+    require('codemirror/lib/codemirror.css');
+    require('codemirror/mode/javascript/javascript');
+    require('codemirror/mode/python/python');
+    require('codemirror/mode/xml/xml');
+    require('codemirror/mode/markdown/markdown');
+    require('codemirror/theme/monokai.css');
+    
+    class Editor extends Component {
+        constructor(props) {
+            super(props);
+    
+            this.updateCode = this.updateCode.bind(this);
+        }
+    
+        updateCode(e) {
+            this.props.onChange(e);
+        }
+    
+        render() {
+            var options = {
+              mode: 'markdown',
+              theme: 'monokai',
+            }
+            return (
+                <CodeMirror value={this.props.value} onChange={this.updateCode} options={options} height="100%"/>
+            );
+        }
+    }
+    
+    export default Editor;
+```
+
+此时再次启动程序，你将能在左边editor中修改，实时的看到右边的变化。
+![editor_markdown](/images/posts/electron/editor_markdown.png)
+
+未来？
+====
+
+这里有一些还需要完成的功能：
+1. 保存和打开文件
+2. 在编辑时自动保存
+3. 工具栏/控制窗框移动
+4. 备份笔记到Github/Dropbox/etc
+5. 支持分组保存笔记或者同意笔记
+6. 支持数学方程在markdown
+7. 更多惊人的功能！
 
 
+可以在Twitter[@kazuarous](https://twitter.com/kazuarous)上查看更新进度，即将推出的功能和其他问题。
 
 
+贡献
+=====
 
 
 
@@ -524,4 +850,6 @@ public/main.js代码：
 [create-react-app]: https://github.com/facebookincubator/create-react-app "create-react-app"
 [electron-is-dev]: https://github.com/sindresorhus/electron-is-dev "electron-is-dev"
 [react-split-pane]: https://github.com/tomkp/react-split-pane "react-split-pane"
-
+[CodeMirror]: https://codemirror.net/ "CodeMirror"
+[React-CodeMirror]: https://github.com/JedWatson/react-codemirror "React-CodeMirror"
+[React-Markdown]: https://github.com/rexxars/react-markdown "React-Markdown"
